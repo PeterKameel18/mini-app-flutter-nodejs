@@ -26,8 +26,11 @@ class _ItemsPageState extends State<ItemsPage> {
     super.initState();
     Map<String, dynamic> jwtDecodedToken = JwtDecoder.decode(widget.token);
     email = jwtDecodedToken['email'];
+    // Call fetchItems after initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      fetchItems();
+    });
     initSharedPrefs();
-    fetchItems();    
   }
 
   void initSharedPrefs() async {
@@ -51,25 +54,52 @@ class _ItemsPageState extends State<ItemsPage> {
 
   Future<void> fetchItems() async {
     try {
-      final response = await http.get(Uri.parse(getItems));
+      print('Fetching items from: $getItems');
+
+      final response = await http.get(
+        Uri.parse(getItems),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
 
       if (response.statusCode == 200) {
-        List<dynamic> jsonData = jsonDecode(response.body);
-        setState(() {
-          items = List<Map<String, dynamic>>.from(jsonData);
-        });
-      } else {
-        throw Exception("Failed to load items");
+        final responseData = jsonDecode(response.body);
+        print('Decoded data: $responseData');
+
+        // Check if responseData is in the expected format
+        if (responseData is Map &&
+            responseData.containsKey('data') &&
+            responseData['data'] is List) {
+          setState(() {
+            items = List<Map<String, dynamic>>.from(responseData['data']);
+          });
+          print('Items loaded: ${items.length}');
+        } else if (responseData is List) {
+          // In case the API returns a direct list without a 'data' wrapper
+          setState(() {
+            items = List<Map<String, dynamic>>.from(responseData);
+          });
+          print('Items loaded directly: ${items.length}');
+        } else {
+          print('Error: Unexpected data format: $responseData');
+        }
       }
     } catch (e) {
       print("Error fetching items: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load items: $e')));
+      }
     }
   }
 
   void addToCart(Map<String, dynamic> item) {
     setState(() {
       cart.add(item);
-      saveCart(); 
+      saveCart();
     });
 
     if (mounted) {
@@ -81,6 +111,7 @@ class _ItemsPageState extends State<ItemsPage> {
 
   @override
   Widget build(BuildContext context) {
+    print('Building ItemsPage with ${items.length} items');
     return Scaffold(
       appBar: AppBar(
         title: const Text('Items List'),
@@ -101,23 +132,44 @@ class _ItemsPageState extends State<ItemsPage> {
           ),
         ],
       ),
-      body: items.isEmpty
-          ? const Center()
-          : ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                return Card(
-                  child: ListTile(
-                    title: Text(items[index]['name']),
-                    subtitle: Text('\$${items[index]['price']}'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.add_shopping_cart),
-                      onPressed: () => addToCart(items[index]),
+      body:
+          items.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                  ),
-                );
-              },
-            ),
+                    child: ListTile(
+                      title: Text(
+                        item['name'],
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item['description'] ?? ''),
+                          Text(
+                            '\$${item['price']}',
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.add_shopping_cart),
+                        onPressed: () => addToCart(item),
+                      ),
+                    ),
+                  );
+                },
+              ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           saveCart(); // Save cart before logging out

@@ -15,6 +15,7 @@ class CartPage extends StatefulWidget {
 class _CartPageState extends State<CartPage> {
   late SharedPreferences prefs;
   List<Map<String, dynamic>> userCart = [];
+  bool _isProcessing = false; // Add this flag for processing state
 
   @override
   void initState() {
@@ -60,8 +61,65 @@ class _CartPageState extends State<CartPage> {
     return userCart.fold(0, (sum, item) => sum + (item['price'] as num));
   }
 
-  void checkout() {
-    if (userCart.isNotEmpty) {
+  // Validate cart items before checkout
+  bool _validateCart() {
+    if (userCart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your cart is empty! Add items before checking out.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return false;
+    }
+
+    // Validate each item in cart
+    for (var item in userCart) {
+      if (!_validateItem(item)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Validate individual item
+  bool _validateItem(Map<String, dynamic> item) {
+    if (!item.containsKey('name') || item['name'].toString().isEmpty) {
+      _showError('Invalid item: Missing name');
+      return false;
+    }
+
+    if (!item.containsKey('price') ||
+        item['price'] == null ||
+        (item['price'] as num) <= 0) {
+      _showError('Invalid item: Invalid price for ${item['name']}');
+      return false;
+    }
+
+    return true;
+  }
+
+  // Show error message
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  // Modified checkout method with validation
+  Future<void> checkout() async {
+    if (_isProcessing) return; // Prevent multiple clicks
+
+    if (!_validateCart()) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      // Simulate checkout process
+      await Future.delayed(const Duration(seconds: 1));
+
       setState(() {
         userCart.clear();
         saveUserCart();
@@ -73,17 +131,22 @@ class _CartPageState extends State<CartPage> {
           backgroundColor: Colors.green,
         ),
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Your cart is empty! Add items before checking out.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+    } catch (e) {
+      _showError('Checkout failed: ${e.toString()}');
+    } finally {
+      setState(() {
+        _isProcessing = false;
+      });
     }
   }
 
+  // Modified removeItem with validation
   void removeItem(int index) {
+    if (index < 0 || index >= userCart.length) {
+      _showError('Invalid item index');
+      return;
+    }
+
     setState(() {
       userCart.removeAt(index);
       saveUserCart();
@@ -103,8 +166,9 @@ class _CartPageState extends State<CartPage> {
                     child: ListView.builder(
                       itemCount: userCart.length,
                       itemBuilder: (context, index) {
+                        final item = userCart[index];
                         return Dismissible(
-                          key: Key(userCart[index]['name']),
+                          key: Key(item['name']),
                           direction: DismissDirection.endToStart,
                           onDismissed: (_) => removeItem(index),
                           background: Container(
@@ -116,19 +180,39 @@ class _CartPageState extends State<CartPage> {
                               color: Colors.white,
                             ),
                           ),
-                          child: ListTile(
-                            leading: Icon(
-                              IconData(
-                                userCart[index]['iconCode'],
-                                fontFamily: 'MaterialIcons',
-                              ),
-                              color: Colors.green,
+                          child: Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
                             ),
-                            title: Text(userCart[index]['name']),
-                            subtitle: Text('\$${userCart[index]['price']}'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.remove_circle_outline),
-                              onPressed: () => removeItem(index),
+                            child: ListTile(
+                              title: Text(
+                                item['name'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (item['description'] != null)
+                                    Text(item['description']),
+                                  Text(
+                                    '\$${item['price']}',
+                                    style: const TextStyle(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () => removeItem(index),
+                              ),
                             ),
                           ),
                         );
@@ -149,15 +233,29 @@ class _CartPageState extends State<CartPage> {
                         ),
                         const SizedBox(height: 10),
                         ElevatedButton.icon(
-                          onPressed: checkout,
-                          icon: const Icon(Icons.payment),
-                          label: const Text("Checkout"),
+                          onPressed: _isProcessing ? null : checkout,
+                          icon:
+                              _isProcessing
+                                  ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                  : const Icon(Icons.payment),
+                          label: Text(
+                            _isProcessing ? "Processing..." : "Checkout",
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 20,
                               vertical: 12,
                             ),
+                            disabledBackgroundColor: Colors.grey,
                           ),
                         ),
                       ],
@@ -166,9 +264,7 @@ class _CartPageState extends State<CartPage> {
                 ],
               ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.pop(context);
-        },
+        onPressed: () => Navigator.pop(context),
         label: const Text("Back to Items"),
         icon: const Icon(Icons.arrow_back),
       ),
