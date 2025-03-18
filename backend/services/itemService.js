@@ -10,6 +10,14 @@ class ItemService {
       throw error;
     }
   }
+  async createItem(data) {
+    try {
+      const newItem = new Item(data);
+      return await newItem.save();
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 module.exports = new ItemService();

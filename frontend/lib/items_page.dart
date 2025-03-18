@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:shopping_app/config.dart';
 import 'dart:convert';
 import 'basket_page.dart';
 import 'login_page.dart';
 
 class ItemsPage extends StatefulWidget {
   final String token;
-  const ItemsPage({required this.token, Key? key}) : super(key: key);
+  const ItemsPage({required this.token, super.key});
 
   @override
   State<ItemsPage> createState() => _ItemsPageState();
@@ -17,6 +19,7 @@ class _ItemsPageState extends State<ItemsPage> {
   late String email;
   late SharedPreferences prefs;
   List<Map<String, dynamic>> cart = [];
+  List<Map<String, dynamic>> items = [];
 
   @override
   void initState() {
@@ -24,6 +27,7 @@ class _ItemsPageState extends State<ItemsPage> {
     Map<String, dynamic> jwtDecodedToken = JwtDecoder.decode(widget.token);
     email = jwtDecodedToken['email'];
     initSharedPrefs();
+    fetchItems();    
   }
 
   void initSharedPrefs() async {
@@ -45,22 +49,27 @@ class _ItemsPageState extends State<ItemsPage> {
     prefs.setString('cart_${widget.token}', jsonEncode(cart));
   }
 
-  final List<Map<String, dynamic>> items = [
-    {'name': '🍎 Apple', 'price': 1.5, 'iconCode': Icons.apple.codePoint},
-    {
-      'name': '🍌 Banana',
-      'price': 1.0,
-      'iconCode': Icons.breakfast_dining.codePoint,
-    },
-    {'name': '🍊 Orange', 'price': 1.2, 'iconCode': Icons.circle.codePoint},
-    {'name': '🍇 Grapes', 'price': 2.0, 'iconCode': Icons.grain.codePoint},
-    {'name': '🥭 Mango', 'price': 2.5, 'iconCode': Icons.food_bank.codePoint},
-  ];
+  Future<void> fetchItems() async {
+    try {
+      final response = await http.get(Uri.parse(getItems));
+
+      if (response.statusCode == 200) {
+        List<dynamic> jsonData = jsonDecode(response.body);
+        setState(() {
+          items = List<Map<String, dynamic>>.from(jsonData);
+        });
+      } else {
+        throw Exception("Failed to load items");
+      }
+    } catch (e) {
+      print("Error fetching items: $e");
+    }
+  }
 
   void addToCart(Map<String, dynamic> item) {
     setState(() {
       cart.add(item);
-      saveCart(); // Save cart after adding item
+      saveCart(); 
     });
 
     if (mounted) {
@@ -92,25 +101,23 @@ class _ItemsPageState extends State<ItemsPage> {
           ),
         ],
       ),
-      body: ListView.builder(
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          return Card(
-            child: ListTile(
-              leading: Icon(
-                IconData(items[index]['iconCode'], fontFamily: 'MaterialIcons'),
-                color: Colors.green,
-              ),
-              title: Text(items[index]['name']),
-              subtitle: Text('\$${items[index]['price']}'),
-              trailing: IconButton(
-                icon: const Icon(Icons.add_shopping_cart),
-                onPressed: () => addToCart(items[index]),
-              ),
+      body: items.isEmpty
+          ? const Center()
+          : ListView.builder(
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                return Card(
+                  child: ListTile(
+                    title: Text(items[index]['name']),
+                    subtitle: Text('\$${items[index]['price']}'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.add_shopping_cart),
+                      onPressed: () => addToCart(items[index]),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           saveCart(); // Save cart before logging out

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shopping_app/login_page.dart';
 import 'package:shopping_app/registration.dart';
 import 'package:shopping_app/items_page.dart';
+import 'package:shopping_app/Admin_Page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +29,8 @@ class MyApp extends StatelessWidget {
         '/': (context) => LoginPage(),
         '/signup': (context) => const Registration(),
         '/items': (context) => ItemsPage(token: token ?? ''),
+        '/admin': (context) => AdminPage(),  
+
       },
       debugShowCheckedModeBanner: false,
     );

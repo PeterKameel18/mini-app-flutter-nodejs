@@ -27,33 +27,57 @@ class _LoginPageState extends State<LoginPage> {
     prefs = await SharedPreferences.getInstance();
   }
 
-  void loginUser() async {
-    if (emailController.text.isNotEmpty && passwordController.text.isNotEmpty) {
-      try {
-        var reqBody = {
-          "email": emailController.text,
-          "password": passwordController.text,
-        };
-        var response = await http.post(
-          Uri.parse(login),
-          headers: {"Content-Type": "application/json"},
-          body: jsonEncode(reqBody),
-        );
-        var jsonResponse = jsonDecode(response.body);
+ void loginUser() async {
+  if (emailController.text.isNotEmpty && passwordController.text.isNotEmpty) {
+    try {
+      var reqBody = {
+        "email": emailController.text,
+        "password": passwordController.text,
+      };
+      var response = await http.post(
+        Uri.parse(login),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(reqBody),
+      );
+      var jsonResponse = jsonDecode(response.body);
 
-        if (jsonResponse['status']) {
-          var myToken = jsonResponse['token'];
-          prefs.setString('token', myToken);
-          Navigator.push(
+      if (jsonResponse['status']) {
+        var myToken = jsonResponse['token'];
+        prefs.setString('token', myToken);
+
+        if (emailController.text == "admin" && 
+            passwordController.text == "admin") {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else {
+          Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => ItemsPage(token: myToken)),
           );
-        } else {}
-      } catch (e) {
-        debugPrint('Error during login: $e');
+        }
+      } else {
+        setState(() {
+          _isNotValidate = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Invalid Email or Password")),
+        );
       }
+    } catch (e) {
+      debugPrint('Error during login: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Login Failed, Try Again")),
+      );
     }
+  } else {
+    setState(() {
+      _isNotValidate = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Please enter email & password")),
+    );
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
