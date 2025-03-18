@@ -24,8 +24,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      initialRoute:
-          token != null && !JwtDecoder.isExpired(token!) ? '/items' : '/',
+
       routes: {
         '/': (context) => LoginPage(),
         '/signup': (context) => const Registration(),
